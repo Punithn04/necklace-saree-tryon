@@ -1,108 +1,116 @@
+---
+title: Necklace Try-On
+emoji: 💎
+colorFrom: pink
+colorTo: yellow
+sdk: gradio
+sdk_version: 5.9.1
+app_file: app.py
+pinned: false
+short_description: Put a necklace on an Indian model in a saree, then recolour its stones
+---
+
 # 💎 Necklace Try-On
 
 Upload a necklace image → generate a photorealistic image of the **same** necklace
 worn by an Indian model in a saree → edit the stones on that image (e.g. green →
 red), keeping the rest of the photo unchanged.
 
-Built for Assignment 2.
-
-## Live app
-
-- **App:** _<add your Streamlit Community Cloud URL here after deploy>_
-- **Screen recording:** _<add link>_
+Built for Assignment 2. **The live app is this Hugging Face Space itself.**
 
 ## Model / API used
 
 | | |
 |---|---|
-| Model | **Stable Diffusion 1.5** (img2img) — the only image-input model on Workers AI |
-| API | **Cloudflare Workers AI** — `@cf/runwayml/stable-diffusion-v1-5-img2img` |
-| Free tier | **10,000 Neurons/day**, no card — just a free Cloudflare account |
-| Auth | Account ID + a "Workers AI" API token |
+| Model | **FLUX.2 [klein]** (9B, Black Forest Labs) via `diffusers` |
+| Hosting | **Hugging Face Space** (Gradio SDK) on **ZeroGPU** — free |
+| Why | FLUX.2 takes one or more reference images plus a text instruction, so the same pipeline call both places the necklace on a model and does the targeted stone recolour, with strong reference fidelity. Running it on our own ZeroGPU Space keeps it free. |
 
-Both steps use the same img2img call. A `strength` parameter controls how far the
-model may move from the input image:
+`MODEL_ID` is a Space variable; the code falls back to
+`black-forest-labs/FLUX.1-Kontext-dev` if a different FLUX.2 [klein] repo id is
+needed.
 
-- **generate** — `strength ≈ 0.85` (large change: put the necklace on a model)
-- **edit** — `strength ≈ 0.45` (small change: recolour the stones, keep the rest)
+### Model selection — what was tried first
 
-### Model selection — what was tried
-
-- **OpenAI `gpt-image-1`** — no free tier (~$0.02–0.19/image).
-- **Google Gemini image model ("Nano Banana")** — API returns `limit: 0`; image
-  models have **no free API quota** (free only in the AI Studio website).
+- **OpenAI `gpt-image-1`** — no free tier.
+- **Google Gemini image model ("Nano Banana")** — API returns `limit: 0`; no free
+  API quota (free only in the AI Studio website).
 - **Hugging Face Inference API** (`Qwen-Image-Edit`, `FLUX.1-Kontext-dev`) — routes
   to paid partner providers → `401`.
-- **Hugging Face Space + free token (Qwen-Image-Edit)** — real editing model, but
-  the free ZeroGPU budget is only a few minutes/day and was exhausted quickly.
-- **Pollinations.ai** — editing models behind a paid tier; keyless model ignores
-  the reference.
-- **Cloudflare Workers AI (SD 1.5 img2img)** — a genuine free tier with a large
-  daily allowance. Chosen, accepting lower fidelity than the paid models.
+- **Calling other people's public Spaces** — ran into their per-caller ZeroGPU
+  quota.
+- **Pollinations.ai** — editing models behind a paid tier.
+- **Cloudflare Workers AI** — the only img2img model (SD 1.5) was withdrawn.
+- **AI Horde** — free img2img works for the *edit*, but plain SD img2img cannot
+  synthesise a model wearing the necklace for the *generate* step.
+- **Self-hosted ZeroGPU Space + FLUX.2 [klein]** — a real reference-editing model,
+  on our own free GPU allowance. Chosen.
 
-## Tools / technologies
+## How it works
 
-- **Python 3.13**, **Streamlit** — UI, state, hosting
-- **requests** — Cloudflare Workers AI REST calls
-- **Pillow** — image I/O, downscaling (768 px longest side), PNG export
-- **Streamlit Community Cloud** — free deploy
+`app.py` is a Gradio app with two GPU functions, both decorated `@spaces.GPU`:
+
+1. **generate(necklace, saree_colour, …)** — builds the generation prompt for the
+   chosen saree colour, passes the necklace as the reference image, returns the
+   model shot.
+2. **edit(image, instruction, …)** — passes the generated image back in with a
+   localized instruction (default: green stones → red rubies), returns the edited
+   image. Repeated edits chain off the previous result.
+
+Both share `_infer()`, which fits the image to a multiple-of-16 size ≤ 1024 px
+and calls the FLUX.2 pipeline with a fixed (or randomised) seed.
 
 ## Prompting approach
 
 Two templates in [`prompts.py`](prompts.py):
 
-1. **Generation** — the necklace image is the img2img input, not described in
-   text. The prompt frames the task as product photography, fixes the model
-   (Indian woman, silk saree in a selectable colour, studio lighting, upper-chest
-   crop with the necklace as focal point), then spends most of its length on
+1. **Generation** — the necklace is the reference image, not described in text.
+   The prompt frames the task as product photography, fixes the model (Indian
+   woman, silk saree in a selectable colour, studio lighting, upper-chest crop
+   with the necklace as focal point), then spends most of its length on
    **fidelity constraints**: same shape, same stone count / arrangement / colour /
    cut, same pearl drops, same metal tone — "match it like a photograph, not an
    interpretation", plus "do not redesign / add / remove / recolour".
-2. **Editing** — one localized instruction (default: green stones → red rubies of
-   the same shape, size and position), with a low `strength` so most of the
-   generated photo is preserved. A strong negative prompt suppresses text,
-   watermarks and anatomy artefacts. Repeated edits chain off the previous
-   result.
+2. **Editing** — one localized instruction with everything else pinned (face,
+   pose, saree, background, lighting, metalwork, pearls, other stones) so the
+   model retouches rather than regenerates.
 
 ## How design accuracy is preserved
 
-- The necklace photo is always the img2img input, so the model starts from the
-  real pixels rather than a paraphrase.
-- Per-step `strength`: high for placing the necklace, low for the recolour so the
-  necklace geometry barely moves.
+- The necklace photo is always the reference image, so the model works from
+  pixels, not a paraphrase.
 - The generation prompt enumerates the invariants instead of "keep it similar".
-- Chained edits build on the last result.
+- Editing is scoped to one attribute and forbids touching the rest; chained edits
+  build on the last result; a fixed seed keeps runs reproducible.
 
-## Run locally
+## Deploy this Space (free)
+
+1. Create a new **Space** at <https://huggingface.co/new-space> → SDK **Gradio**.
+2. In **Settings → Hardware**, select **ZeroGPU**.
+3. Push these files to the Space's git repo (or "Files → add" in the UI).
+4. If FLUX.2 [klein] is gated, accept its licence on its model page, then add a
+   Space secret **`HF_TOKEN`** (a Read token). Optionally set **`MODEL_ID`**.
+5. First build downloads the weights (a few minutes); after that it runs on
+   ZeroGPU per request.
+
+Source mirror: <https://github.com/Punithn04/necklace-saree-tryon>
+
+## Run locally (needs a CUDA GPU with enough VRAM)
 
 ```bash
 pip install -r requirements.txt
-streamlit run app.py
+python app.py
 ```
-
-Enter your Cloudflare Account ID + API token in the sidebar, or set `CF_ACCOUNT_ID`
-and `CF_API_TOKEN` in `.streamlit/secrets.toml`.
-
-## Deploy (free)
-
-1. Push this repo to GitHub.
-2. <https://share.streamlit.io> → **New app** → point at `app.py`.
-3. **Settings → Secrets:**
-   ```toml
-   CF_ACCOUNT_ID = "..."
-   CF_API_TOKEN = "..."
-   ```
 
 ## Limitations faced
 
-- **No free-tier API from the ChatGPT-quality models** — Gemini's image API is
-  `limit: 0`, OpenAI's is paid, HF's free GPU budget is minutes/day. The only
-  large free allowance is Cloudflare's, on SD 1.5.
-- **SD 1.5 img2img fidelity is limited.** It keeps the necklace's rough shape and
-  palette, but fine filigree, exact stone counts and small accent stones drift
-  more than a dedicated edit model would.
-- **`strength` is a blunt instrument** — too low and the "generate" step barely
-  adds a model; too high and the "edit" step changes more than the stones. The
-  values are tuned but not perfect.
-- **No true masking**, so a broad recolour instruction can tint nearby areas.
-- **Single upper-body view; non-deterministic between runs.**
+- **Free-tier reality** — no ChatGPT-quality image *API* is free; every hosted
+  free API was a dead end (see above), so the model is self-hosted on ZeroGPU.
+- **ZeroGPU daily budget** — the free allowance is limited; heavy use hits a
+  "quota exceeded, try later" message. A `klein`-sized model at fewer steps
+  stretches it further than a larger model would.
+- **Cold starts** — the first request after the Space sleeps reloads the pipeline
+  (tens of seconds).
+- **Stone-level fidelity** — silhouette and palette hold up well; very fine
+  filigree and exact counts of tiny accent stones can still drift.
+- **Single upper-body view; non-deterministic unless the seed is fixed.**
