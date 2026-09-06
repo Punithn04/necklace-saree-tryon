@@ -1,8 +1,14 @@
 """Necklace Try-On — Streamlit prototype.
 
 Upload a necklace image -> generate a photo of the same necklace worn by an
-Indian model in a saree -> edit the stones on that image (e.g. green -> red).
-All image work runs on Qwen-Image-Edit via a free Hugging Face Space.
+Indian model in a saree -> edit the stones (e.g. green -> red).
+
+Backend:
+  * default — AI Horde (stablehorde.net): free, no card, no daily cap (just a
+    queue). The recolour edit is faithful; the generate step is text2img, so the
+    necklace is a plausible one, not a pixel-match of the upload.
+  * optional — paste a Gemini (AIza…) or OpenAI (sk-…) key for a reference-faithful
+    result at your own cost.
 """
 
 from __future__ import annotations
@@ -12,8 +18,14 @@ import io
 import streamlit as st
 from PIL import Image
 
-from hf_client import HFError, run
-from prompts import DEFAULT_EDIT_INSTRUCTION, EDIT_PROMPT, GENERATION_PROMPT
+from byok_client import BYOKError, run as byok_run
+from horde_client import HordeError, run as horde_run
+from prompts import (
+    DEFAULT_EDIT_INSTRUCTION,
+    EDIT_PROMPT,
+    GENERATION_PROMPT,
+    GENERATION_PROMPT_NOREF,
+)
 
 st.set_page_config(page_title="Necklace Try-On", page_icon="💎", layout="wide")
 
@@ -28,36 +40,87 @@ def load(upload) -> Image.Image:
     return Image.open(upload).convert("RGB")
 
 
-def get_token() -> str | None:
+def _secret(name):
     try:
-        tok = st.secrets.get("HF_TOKEN", None)
+        return st.secrets.get(name, None)
     except Exception:
-        tok = None
+        return None
+
+
+def sidebar() -> tuple[str | None, str]:
     with st.sidebar:
         st.header("Setup")
-        if tok:
-            st.success("Using HF_TOKEN from app secrets.")
+        byok = _secret("BYOK_KEY")
+        horde_key = _secret("HORDE_API_KEY") or ""
+        if byok:
+            st.success("Using BYOK_KEY from app secrets (premium backend).")
         else:
-            tok = st.text_input(
-                "Hugging Face token",
+            byok = st.text_input(
+                "API key — optional, for best quality",
                 type="password",
-                help="Free, 'Read' scope: https://huggingface.co/settings/tokens",
+                help="Gemini key (AIza…) or OpenAI key (sk-…). Leave blank to use the free backend.",
             ) or None
-        st.caption("Model: Qwen-Image-Edit (Hugging Face Space, free tier).")
-        st.caption(
-            "Runs on ZeroGPU — a free token gives a few minutes of GPU per day, "
-            "and each run can take 30–90s."
+        if not _secret("HORDE_API_KEY"):
+            horde_key = st.text_input(
+                "AI Horde key — optional (speeds the queue)",
+                type="password",
+                value="",
+                help="Free from https://stablehorde.net/register . Blank = anonymous.",
+            ) or ""
+
+        if byok:
+            st.info("Backend: **premium (your key)** — reference-faithful.")
+        else:
+            st.info(
+                "Backend: **AI Horde (free)** — recolour is faithful; the generate "
+                "step is text2img, so the necklace is representative, not exact."
+            )
+    return byok, horde_key
+
+
+def do_generate(byok, horde_key, saree_colour, necklace):
+    if byok:
+        with st.spinner("Generating with your key…"):
+            try:
+                return byok_run(byok, GENERATION_PROMPT.format(saree_colour=saree_colour), [necklace])
+            except BYOKError as e:
+                st.error(str(e))
+                return None
+    box = st.empty()
+    box.info("Generating on AI Horde — submitting…")
+    try:
+        return horde_run(
+            horde_key, "generate",
+            GENERATION_PROMPT_NOREF.format(saree_colour=saree_colour),
+            [necklace],
+            progress=lambda m: box.info(f"Generating on AI Horde — {m}"),
         )
-    return tok
+    except HordeError as e:
+        st.error(str(e))
+        return None
+    finally:
+        box.empty()
 
 
-def generate(token, prompt, images, label):
-    with st.spinner(f"{label} on Hugging Face… (30–90s)"):
-        try:
-            return run(token, prompt, images)
-        except HFError as e:
-            st.error(str(e))
-            return None
+def do_edit(byok, horde_key, instruction, base):
+    prompt = EDIT_PROMPT.format(instruction=instruction or DEFAULT_EDIT_INSTRUCTION)
+    if byok:
+        with st.spinner("Editing with your key…"):
+            try:
+                return byok_run(byok, prompt, [base])
+            except BYOKError as e:
+                st.error(str(e))
+                return None
+    box = st.empty()
+    box.info("Editing on AI Horde — submitting…")
+    try:
+        return horde_run(horde_key, "edit", prompt, [base],
+                         progress=lambda m: box.info(f"Editing on AI Horde — {m}"))
+    except HordeError as e:
+        st.error(str(e))
+        return None
+    finally:
+        box.empty()
 
 
 def main() -> None:
@@ -67,7 +130,7 @@ def main() -> None:
         "necklace worn by an Indian model in a saree — then tweak the stones."
     )
 
-    token = get_token()
+    byok, horde_key = sidebar()
     for k in ("necklace_img", "generated", "edited"):
         st.session_state.setdefault(k, None)
 
@@ -96,17 +159,10 @@ def main() -> None:
         "Saree colour",
         ["cream and gold", "deep red", "royal blue", "emerald green", "magenta pink"],
     )
-    if st.button("Generate", type="primary", disabled=not token):
-        img = generate(
-            token,
-            GENERATION_PROMPT.format(saree_colour=saree_colour),
-            [st.session_state.necklace_img],
-            "Generating",
-        )
+    if st.button("Generate", type="primary"):
+        img = do_generate(byok, horde_key, saree_colour, st.session_state.necklace_img)
         if img is not None:
             st.session_state.generated, st.session_state.edited = img, None
-    if not token:
-        st.warning("Add your Hugging Face token in the sidebar to generate.")
 
     if st.session_state.generated is None:
         return
@@ -117,9 +173,9 @@ def main() -> None:
     # ---- Step 3: edit ------------------------------------------------------
     st.subheader("3 · Edit the stones")
     instruction = st.text_area("Edit instruction", value=DEFAULT_EDIT_INSTRUCTION)
-    if st.button("Apply edit", disabled=not token):
+    if st.button("Apply edit"):
         base = st.session_state.edited or st.session_state.generated
-        img = generate(token, EDIT_PROMPT.format(instruction=instruction), [base], "Editing")
+        img = do_edit(byok, horde_key, instruction, base)
         if img is not None:
             st.session_state.edited = img
 

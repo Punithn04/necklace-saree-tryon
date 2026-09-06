@@ -36,6 +36,19 @@ same photograph with a localized retouch, not a regenerated scene.
 Output: a single realistic photograph. No text, no watermark.
 """
 
+# Used by the free (AI Horde) backend for the generate step, which is text2img:
+# there is no reference image, so the necklace is described rather than copied.
+GENERATION_PROMPT_NOREF = (
+    "photorealistic studio portrait photograph of a beautiful Indian woman in her "
+    "late 20s, warm skin tone, soft beauty lighting, wearing an elegant "
+    "{saree_colour} silk saree with a matching blouse, hair in a neat low bun, "
+    "subtle traditional makeup, small bindi, upper-chest crop, slight three-quarter "
+    "pose, plain softly lit studio background. She wears a large ornate Indian "
+    "bridal necklace in rose-gold with diamonds, green emerald stones and pearl "
+    "drops, resting on her collarbone as the clear focal point. highly detailed, "
+    "sharp focus, 85mm lens, no text, no watermark"
+)
+
 DEFAULT_EDIT_INSTRUCTION = (
     "Change every green stone in the necklace to a deep red ruby of the same "
     "shape, size and position."
