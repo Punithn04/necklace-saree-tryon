@@ -1,96 +1,120 @@
 <!doctype html>
-<html lang="en" class="dark">
+<html lang="en">
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>Necklace Try-On</title>
 <script src="https://cdn.tailwindcss.com"></script>
-<script>tailwind.config = { darkMode: "class" };</script>
-<style>.prompt{white-space:pre-wrap}</style>
+<style>
+  :root{
+    --bg:#f7f1e8; --surface:#fffdf9; --border:#e7dccb; --text:#2c2621;
+    --muted:#6f6456; --box:#f1e9db; --accent:#a8324e; --accent-fg:#fffdf9; --hover:#efe6d6;
+  }
+  :root.dark{
+    --bg:#141210; --surface:#1c1815; --border:#2e2823; --text:#efe9e0;
+    --muted:#a79c8c; --box:#1f1a15; --accent:#e88aa0; --accent-fg:#1c1815; --hover:#26201a;
+  }
+  body{background:var(--bg);color:var(--text);}
+  .muted{color:var(--muted);}
+  .card{background:var(--surface);border:1px solid var(--border);}
+  .box{background:var(--box);border:1px solid var(--border);color:var(--text);}
+  select,textarea{background:var(--surface);border:1px solid var(--border);color:var(--text);border-radius:.375rem;}
+  select:focus,textarea:focus{outline:2px solid var(--accent);outline-offset:1px;}
+  .btn{border:1px solid var(--border);border-radius:.375rem;}
+  .btn:hover{background:var(--hover);}
+  .chip{background:var(--box);border:1px solid var(--border);border-radius:.25rem;}
+  .chip:hover{background:var(--hover);}
+  a.link{color:var(--accent);text-decoration:underline;}
+  .prompt{white-space:pre-wrap;}
+
+  /* light/dark toggle switch */
+  .switch{position:relative;width:60px;height:30px;border-radius:999px;background:var(--box);
+    border:1px solid var(--border);cursor:pointer;flex-shrink:0;padding:0;}
+  .switch::before{content:"☀";position:absolute;left:8px;top:50%;transform:translateY(-50%);font-size:12px;opacity:.7;}
+  .switch::after{content:"🌙";position:absolute;right:8px;top:50%;transform:translateY(-50%);font-size:12px;opacity:.7;}
+  .switch .knob{position:absolute;top:2px;left:2px;width:24px;height:24px;border-radius:50%;
+    background:var(--accent);transition:transform .22s cubic-bezier(.4,0,.2,1);}
+  :root.dark .switch .knob{transform:translateX(30px);}
+  @media (prefers-reduced-motion:reduce){.switch .knob{transition:none;}}
+</style>
 </head>
-<body class="bg-white text-neutral-900 dark:bg-neutral-950 dark:text-neutral-100 min-h-screen">
+<body class="min-h-screen">
 <div class="max-w-4xl mx-auto px-4 py-8">
 
   <header class="mb-8 flex items-start justify-between gap-4">
     <div>
       <h1 class="text-3xl font-semibold">💎 Necklace Try-On</h1>
-      <p class="text-neutral-500 dark:text-neutral-400 mt-2 max-w-2xl">
+      <p class="muted mt-2 max-w-2xl">
         Pick your options below to build two optimised prompts — one to place the
         necklace on an Indian model, one to change the stone colours. Copy each
         prompt, attach your necklace image in
-        <a class="underline" href="https://chatgpt.com" target="_blank" rel="noopener">ChatGPT</a> or
-        <a class="underline" href="https://aistudio.google.com" target="_blank" rel="noopener">Google&nbsp;AI&nbsp;Studio</a>,
+        <a class="link" href="https://chatgpt.com" target="_blank" rel="noopener">ChatGPT</a> or
+        <a class="link" href="https://aistudio.google.com" target="_blank" rel="noopener">Google&nbsp;AI&nbsp;Studio</a>,
         and run it. No uploads here, no API keys, no cost.
       </p>
     </div>
-    <button id="themeToggle" title="Toggle light / dark"
-      class="shrink-0 rounded-lg border border-neutral-300 dark:border-neutral-700 px-3 py-2 text-sm
-             hover:bg-neutral-100 dark:hover:bg-neutral-800">
-      <span class="dark:hidden">🌙 Dark</span><span class="hidden dark:inline">☀️ Light</span>
+    <button id="themeToggle" class="switch" role="switch" aria-checked="false" aria-label="Dark mode">
+      <span class="knob"></span>
     </button>
   </header>
 
   <!-- Step 1 -->
-  <section class="mb-8 rounded-lg border border-neutral-200 dark:border-neutral-800 p-5">
+  <section class="card mb-8 rounded-xl p-5">
     <h2 class="text-xl font-medium mb-1">Step 1 · Necklace on a model</h2>
-    <p class="text-sm text-neutral-500 dark:text-neutral-400 mb-4">
-      Choose the saree and the model. Attach your necklace image when you paste this prompt.
-    </p>
+    <p class="text-sm muted mb-4">Choose the saree and the model. Attach your necklace image when you paste this prompt.</p>
 
     <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-4">
       <label class="block">
-        <span class="block text-sm text-neutral-500 dark:text-neutral-400 mb-1">Saree colour</span>
-        <select id="sareeColour" class="w-full rounded border border-neutral-300 dark:border-neutral-700 bg-neutral-100 dark:bg-neutral-800 px-3 py-2 text-sm">
+        <span class="block text-sm muted mb-1">Saree colour</span>
+        <select id="sareeColour" class="w-full px-3 py-2 text-sm">
           <option>cream and gold</option><option>deep red</option><option>royal blue</option>
           <option>emerald green</option><option>magenta pink</option><option>mustard yellow</option>
           <option>ivory white</option><option>black</option>
         </select>
       </label>
       <label class="block">
-        <span class="block text-sm text-neutral-500 dark:text-neutral-400 mb-1">Saree fabric / style</span>
-        <select id="sareeStyle" class="w-full rounded border border-neutral-300 dark:border-neutral-700 bg-neutral-100 dark:bg-neutral-800 px-3 py-2 text-sm">
+        <span class="block text-sm muted mb-1">Saree fabric / style</span>
+        <select id="sareeStyle" class="w-full px-3 py-2 text-sm">
           <option>silk</option><option>Banarasi silk</option><option>Kanjivaram silk</option>
           <option>georgette</option><option>organza</option><option>cotton</option>
         </select>
       </label>
       <label class="block">
-        <span class="block text-sm text-neutral-500 dark:text-neutral-400 mb-1">Model skin tone</span>
-        <select id="skinTone" class="w-full rounded border border-neutral-300 dark:border-neutral-700 bg-neutral-100 dark:bg-neutral-800 px-3 py-2 text-sm">
+        <span class="block text-sm muted mb-1">Model skin tone</span>
+        <select id="skinTone" class="w-full px-3 py-2 text-sm">
           <option>fair</option><option>wheatish</option><option>medium tan</option>
           <option>dusky</option><option>deep brown</option>
         </select>
       </label>
     </div>
 
-    <p class="text-sm text-neutral-500 dark:text-neutral-400 mb-2">Generation prompt:</p>
+    <p class="text-sm muted mb-2">Generation prompt:</p>
     <div class="relative">
-      <pre id="genPrompt" class="prompt rounded border border-neutral-300 dark:border-neutral-800 bg-neutral-100 dark:bg-neutral-900 p-4 text-sm text-neutral-800 dark:text-neutral-200 overflow-x-auto"></pre>
-      <button data-copy="genPrompt" class="copyBtn absolute top-2 right-2 rounded bg-neutral-200 dark:bg-neutral-800 px-2 py-1 text-xs hover:bg-neutral-300 dark:hover:bg-neutral-700">Copy</button>
+      <pre id="genPrompt" class="prompt box rounded p-4 text-sm overflow-x-auto"></pre>
+      <button data-copy="genPrompt" class="copyBtn chip absolute top-2 right-2 px-2 py-1 text-xs">Copy</button>
     </div>
     <div class="flex gap-3 mt-3">
-      <a href="https://chatgpt.com" target="_blank" rel="noopener" class="rounded border border-neutral-300 dark:border-neutral-700 px-3 py-2 text-sm hover:bg-neutral-100 dark:hover:bg-neutral-800">Open ChatGPT ↗</a>
-      <a href="https://aistudio.google.com" target="_blank" rel="noopener" class="rounded border border-neutral-300 dark:border-neutral-700 px-3 py-2 text-sm hover:bg-neutral-100 dark:hover:bg-neutral-800">Open Google AI Studio ↗</a>
+      <a href="https://chatgpt.com" target="_blank" rel="noopener" class="btn px-3 py-2 text-sm">Open ChatGPT ↗</a>
+      <a href="https://aistudio.google.com" target="_blank" rel="noopener" class="btn px-3 py-2 text-sm">Open Google AI Studio ↗</a>
     </div>
   </section>
 
   <!-- Step 2 -->
-  <section class="mb-8 rounded-lg border border-neutral-200 dark:border-neutral-800 p-5">
+  <section class="card mb-8 rounded-xl p-5">
     <h2 class="text-xl font-medium mb-1">Step 2 · Change the stone colours</h2>
-    <p class="text-sm text-neutral-500 dark:text-neutral-400 mb-4">
-      Run this in the <strong>same chat</strong>, so it edits the model image it just made.
-    </p>
+    <p class="text-sm muted mb-4">Run this in the <strong>same chat</strong>, so it edits the model image it just made.</p>
 
     <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-3">
       <label class="block">
-        <span class="block text-sm text-neutral-500 dark:text-neutral-400 mb-1">Change stones that are…</span>
-        <select id="fromColour" class="w-full rounded border border-neutral-300 dark:border-neutral-700 bg-neutral-100 dark:bg-neutral-800 px-3 py-2 text-sm">
+        <span class="block text-sm muted mb-1">Change stones that are…</span>
+        <select id="fromColour" class="w-full px-3 py-2 text-sm">
           <option>green</option><option>red</option><option>blue</option><option>white / clear</option>
           <option>yellow</option><option>pink</option><option>purple</option>
         </select>
       </label>
       <label class="block">
-        <span class="block text-sm text-neutral-500 dark:text-neutral-400 mb-1">…to</span>
-        <select id="toColour" class="w-full rounded border border-neutral-300 dark:border-neutral-700 bg-neutral-100 dark:bg-neutral-800 px-3 py-2 text-sm">
+        <span class="block text-sm muted mb-1">…to</span>
+        <select id="toColour" class="w-full px-3 py-2 text-sm">
           <option>red</option><option>green</option><option>blue</option><option>white diamond</option>
           <option>yellow</option><option>pink</option><option>purple</option>
         </select>
@@ -98,27 +122,27 @@
     </div>
 
     <label class="block mb-3">
-      <span class="block text-sm text-neutral-500 dark:text-neutral-400 mb-1">Edit instruction (auto-filled, editable)</span>
-      <textarea id="instruction" rows="2" class="w-full rounded border border-neutral-300 dark:border-neutral-700 bg-neutral-100 dark:bg-neutral-800 px-3 py-2 text-sm"></textarea>
+      <span class="block text-sm muted mb-1">Edit instruction (auto-filled, editable)</span>
+      <textarea id="instruction" rows="2" class="w-full px-3 py-2 text-sm"></textarea>
     </label>
 
-    <p class="text-sm text-neutral-500 dark:text-neutral-400 mb-2">Edit prompt:</p>
+    <p class="text-sm muted mb-2">Edit prompt:</p>
     <div class="relative">
-      <pre id="editPrompt" class="prompt rounded border border-neutral-300 dark:border-neutral-800 bg-neutral-100 dark:bg-neutral-900 p-4 text-sm text-neutral-800 dark:text-neutral-200 overflow-x-auto"></pre>
-      <button data-copy="editPrompt" class="copyBtn absolute top-2 right-2 rounded bg-neutral-200 dark:bg-neutral-800 px-2 py-1 text-xs hover:bg-neutral-300 dark:hover:bg-neutral-700">Copy</button>
+      <pre id="editPrompt" class="prompt box rounded p-4 text-sm overflow-x-auto"></pre>
+      <button data-copy="editPrompt" class="copyBtn chip absolute top-2 right-2 px-2 py-1 text-xs">Copy</button>
     </div>
   </section>
 
-  <!-- Sample necklaces (optional reference images) -->
-  <section class="mb-10 rounded-lg border border-neutral-200 dark:border-neutral-800 p-5">
-    <h2 class="text-sm font-medium mb-3 text-neutral-500 dark:text-neutral-400">Sample necklaces (right-click → save, to attach in the chat)</h2>
+  <!-- Sample necklaces -->
+  <section class="card mb-10 rounded-xl p-5">
+    <h2 class="text-sm font-medium muted mb-3">Sample necklaces (right-click → save, to attach in the chat)</h2>
     <div class="flex gap-4">
-      <a href="sample_images/necklace_green.jpg" target="_blank"><img src="sample_images/necklace_green.jpg" class="h-28 rounded border border-neutral-300 dark:border-neutral-700" alt="green stones sample" /></a>
-      <a href="sample_images/necklace_red.jpg" target="_blank"><img src="sample_images/necklace_red.jpg" class="h-28 rounded border border-neutral-300 dark:border-neutral-700" alt="red stones sample" /></a>
+      <a href="sample_images/necklace_green.jpg" target="_blank"><img src="sample_images/necklace_green.jpg" class="h-28 rounded" style="border:1px solid var(--border)" alt="green stones sample" /></a>
+      <a href="sample_images/necklace_red.jpg" target="_blank"><img src="sample_images/necklace_red.jpg" class="h-28 rounded" style="border:1px solid var(--border)" alt="red stones sample" /></a>
     </div>
   </section>
 
-  <footer class="text-xs text-neutral-400 dark:text-neutral-500 border-t border-neutral-200 dark:border-neutral-900 pt-4">
+  <footer class="text-xs muted pt-4" style="border-top:1px solid var(--border)">
     Assignment 2 prototype. The single model call is done in a free browser tool; a small paid
     variant (OpenAI image API, ~₹4/image, rate-limited) is available on request. See the README.
   </footer>
@@ -178,16 +202,23 @@ document.querySelectorAll(".copyBtn").forEach((b) =>
     setTimeout(() => (b.textContent = t), 1200);
   }));
 
-// theme
+// theme: default follows OS; explicit choice is remembered
 const root = document.documentElement;
+const toggle = $("themeToggle");
+function applyTheme(dark) {
+  root.classList.toggle("dark", dark);
+  toggle.setAttribute("aria-checked", String(dark));
+}
+let dark;
 try {
   const saved = localStorage.getItem("theme");
-  if (saved === "light") root.classList.remove("dark");
-  if (saved === "dark") root.classList.add("dark");
-} catch (e) {}
-$("themeToggle").addEventListener("click", () => {
-  root.classList.toggle("dark");
-  try { localStorage.setItem("theme", root.classList.contains("dark") ? "dark" : "light"); } catch (e) {}
+  dark = saved ? saved === "dark" : window.matchMedia("(prefers-color-scheme: dark)").matches;
+} catch (e) { dark = false; }
+applyTheme(dark);
+toggle.addEventListener("click", () => {
+  dark = !root.classList.contains("dark");
+  applyTheme(dark);
+  try { localStorage.setItem("theme", dark ? "dark" : "light"); } catch (e) {}
 });
 
 refreshGen();
