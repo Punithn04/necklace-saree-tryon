@@ -2,7 +2,7 @@
 
 Upload a necklace image -> generate a photo of the same necklace worn by an
 Indian model in a saree -> edit the stones on that image (e.g. green -> red).
-All image work runs on Qwen-Image-Edit via a free Hugging Face Space.
+All image work runs on Cloudflare Workers AI (SDXL img2img), free tier.
 """
 
 from __future__ import annotations
@@ -12,7 +12,7 @@ import io
 import streamlit as st
 from PIL import Image
 
-from hf_client import HFError, run
+from cf_client import CFError, run
 from prompts import DEFAULT_EDIT_INSTRUCTION, EDIT_PROMPT, GENERATION_PROMPT
 
 st.set_page_config(page_title="Necklace Try-On", page_icon="💎", layout="wide")
@@ -28,34 +28,36 @@ def load(upload) -> Image.Image:
     return Image.open(upload).convert("RGB")
 
 
-def get_token() -> str | None:
+def _secret(name):
     try:
-        tok = st.secrets.get("HF_TOKEN", None)
+        return st.secrets.get(name, None)
     except Exception:
-        tok = None
+        return None
+
+
+def get_creds() -> tuple[str | None, str | None]:
+    acct = _secret("CF_ACCOUNT_ID")
+    token = _secret("CF_API_TOKEN")
     with st.sidebar:
         st.header("Setup")
-        if tok:
-            st.success("Using HF_TOKEN from app secrets.")
+        if acct and token:
+            st.success("Using Cloudflare creds from app secrets.")
         else:
-            tok = st.text_input(
-                "Hugging Face token",
-                type="password",
-                help="Free, 'Read' scope: https://huggingface.co/settings/tokens",
-            ) or None
-        st.caption("Model: Qwen-Image-Edit (Hugging Face Space, free tier).")
+            acct = st.text_input("Cloudflare Account ID", value=acct or "") or None
+            token = st.text_input("Cloudflare API token", value=token or "", type="password") or None
+        st.caption("Model: SDXL img2img on Cloudflare Workers AI (free — 10,000 runs/day).")
         st.caption(
-            "Runs on ZeroGPU — a free token gives a few minutes of GPU per day, "
-            "and each run can take 30–90s."
+            "Free account: Account ID from the Workers & Pages page; API token from "
+            "My Profile → API Tokens → 'Workers AI' template."
         )
-    return tok
+    return acct, token
 
 
-def generate(token, prompt, images, label):
-    with st.spinner(f"{label} on Hugging Face… (30–90s)"):
+def generate(acct, token, step, prompt, images, label):
+    with st.spinner(f"{label} on Cloudflare Workers AI…"):
         try:
-            return run(token, prompt, images)
-        except HFError as e:
+            return run(acct, token, step, prompt, images)
+        except CFError as e:
             st.error(str(e))
             return None
 
@@ -67,7 +69,8 @@ def main() -> None:
         "necklace worn by an Indian model in a saree — then tweak the stones."
     )
 
-    token = get_token()
+    acct, token = get_creds()
+    ready = bool(acct and token)
     for k in ("necklace_img", "generated", "edited"):
         st.session_state.setdefault(k, None)
 
@@ -96,17 +99,17 @@ def main() -> None:
         "Saree colour",
         ["cream and gold", "deep red", "royal blue", "emerald green", "magenta pink"],
     )
-    if st.button("Generate", type="primary", disabled=not token):
+    if st.button("Generate", type="primary", disabled=not ready):
         img = generate(
-            token,
+            acct, token, "generate",
             GENERATION_PROMPT.format(saree_colour=saree_colour),
             [st.session_state.necklace_img],
             "Generating",
         )
         if img is not None:
             st.session_state.generated, st.session_state.edited = img, None
-    if not token:
-        st.warning("Add your Hugging Face token in the sidebar to generate.")
+    if not ready:
+        st.warning("Add your Cloudflare Account ID and API token in the sidebar.")
 
     if st.session_state.generated is None:
         return
@@ -117,9 +120,10 @@ def main() -> None:
     # ---- Step 3: edit ------------------------------------------------------
     st.subheader("3 · Edit the stones")
     instruction = st.text_area("Edit instruction", value=DEFAULT_EDIT_INSTRUCTION)
-    if st.button("Apply edit", disabled=not token):
+    if st.button("Apply edit", disabled=not ready):
         base = st.session_state.edited or st.session_state.generated
-        img = generate(token, EDIT_PROMPT.format(instruction=instruction), [base], "Editing")
+        img = generate(acct, token, "edit", EDIT_PROMPT.format(instruction=instruction),
+                       [base], "Editing")
         if img is not None:
             st.session_state.edited = img
 
