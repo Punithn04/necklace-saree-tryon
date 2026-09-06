@@ -17,7 +17,9 @@ import tempfile
 
 from PIL import Image
 
-SPACES = ["Qwen/Qwen-Image-Edit", "multimodalart/Qwen-Image-Edit-Fast"]
+# Fast first: it reserves ~60s of ZeroGPU per run vs ~240s for the full Space,
+# so the free daily budget stretches ~4x further.
+SPACES = ["multimodalart/Qwen-Image-Edit-Fast", "Qwen/Qwen-Image-Edit"]
 CONNECT_BUDGET = 45   # seconds to establish the client
 PREDICT_BUDGET = 150  # seconds for one GPU run
 MAX_SIDE = 1024
