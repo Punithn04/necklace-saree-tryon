@@ -11,6 +11,13 @@ Built for Assignment 2.
 - **App:** _<add your Streamlit Community Cloud URL here after deploy>_
 - **Screen recording:** _<add link>_
 
+The live app runs on the free **AI Horde** backend (see below). The high-fidelity
+reference images in `examples/` were produced with **Google AI Studio**
+(Gemini 2.5 Flash Image, "Nano Banana") in the browser — its API has no free tier
+(`limit: 0`) and Indian billing requires a paid prepaid top-up, but the website
+is free for a handful of images. The optional bring-your-own-key path in the app
+reproduces that fidelity automatically for anyone who supplies a key.
+
 ## Backends
 
 The app has two backends. It picks automatically:
