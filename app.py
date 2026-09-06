@@ -1,8 +1,8 @@
 """Necklace Try-On — Streamlit prototype.
 
-Upload a necklace image -> generate a photorealistic image of the same necklace
-worn by an Indian model in a saree -> edit the stones on that image (e.g. green
--> red). All generation runs on Gemini 2.5 Flash Image ("Nano Banana"), free tier.
+Upload a necklace image -> generate a photo of the same necklace worn by an
+Indian model in a saree -> edit the stones on that image (e.g. green -> red).
+All image work runs on Qwen-Image-Edit via a free Hugging Face Space.
 """
 
 from __future__ import annotations
@@ -12,7 +12,7 @@ import io
 import streamlit as st
 from PIL import Image
 
-from gemini_client import GeminiError, run
+from hf_client import HFError, run
 from prompts import DEFAULT_EDIT_INSTRUCTION, EDIT_PROMPT, GENERATION_PROMPT
 
 st.set_page_config(page_title="Necklace Try-On", page_icon="💎", layout="wide")
@@ -28,34 +28,34 @@ def load(upload) -> Image.Image:
     return Image.open(upload).convert("RGB")
 
 
-def get_api_key() -> str | None:
+def get_token() -> str | None:
     try:
-        key = st.secrets.get("GEMINI_API_KEY", None)
+        tok = st.secrets.get("HF_TOKEN", None)
     except Exception:
-        key = None
+        tok = None
     with st.sidebar:
         st.header("Setup")
-        if key:
-            st.success("Using GEMINI_API_KEY from app secrets.")
+        if tok:
+            st.success("Using HF_TOKEN from app secrets.")
         else:
-            key = st.text_input(
-                "Gemini API key",
+            tok = st.text_input(
+                "Hugging Face token",
                 type="password",
-                help="Free key: https://aistudio.google.com/apikey",
+                help="Free, 'Read' scope: https://huggingface.co/settings/tokens",
             ) or None
-        st.caption("Model: gemini-2.5-flash-image (Nano Banana), free tier.")
+        st.caption("Model: Qwen-Image-Edit (Hugging Face Space, free tier).")
         st.caption(
-            "The free image tier is blocked outside the US — run the deployed app "
-            "on Streamlit Community Cloud (US) for it to work."
+            "Runs on ZeroGPU — a free token gives a few minutes of GPU per day, "
+            "and each run can take 30–90s."
         )
-    return key
+    return tok
 
 
-def generate(api_key, prompt, images, label):
-    with st.spinner(f"{label} with Gemini…"):
+def generate(token, prompt, images, label):
+    with st.spinner(f"{label} on Hugging Face… (30–90s)"):
         try:
-            return run(api_key, prompt, images)
-        except GeminiError as e:
+            return run(token, prompt, images)
+        except HFError as e:
             st.error(str(e))
             return None
 
@@ -67,7 +67,7 @@ def main() -> None:
         "necklace worn by an Indian model in a saree — then tweak the stones."
     )
 
-    api_key = get_api_key()
+    token = get_token()
     for k in ("necklace_img", "generated", "edited"):
         st.session_state.setdefault(k, None)
 
@@ -96,17 +96,17 @@ def main() -> None:
         "Saree colour",
         ["cream and gold", "deep red", "royal blue", "emerald green", "magenta pink"],
     )
-    if st.button("Generate", type="primary", disabled=not api_key):
+    if st.button("Generate", type="primary", disabled=not token):
         img = generate(
-            api_key,
+            token,
             GENERATION_PROMPT.format(saree_colour=saree_colour),
             [st.session_state.necklace_img],
             "Generating",
         )
         if img is not None:
             st.session_state.generated, st.session_state.edited = img, None
-    if not api_key:
-        st.warning("Add your Gemini API key in the sidebar to generate.")
+    if not token:
+        st.warning("Add your Hugging Face token in the sidebar to generate.")
 
     if st.session_state.generated is None:
         return
@@ -117,9 +117,9 @@ def main() -> None:
     # ---- Step 3: edit ------------------------------------------------------
     st.subheader("3 · Edit the stones")
     instruction = st.text_area("Edit instruction", value=DEFAULT_EDIT_INSTRUCTION)
-    if st.button("Apply edit", disabled=not api_key):
+    if st.button("Apply edit", disabled=not token):
         base = st.session_state.edited or st.session_state.generated
-        img = generate(api_key, EDIT_PROMPT.format(instruction=instruction), [base], "Editing")
+        img = generate(token, EDIT_PROMPT.format(instruction=instruction), [base], "Editing")
         if img is not None:
             st.session_state.edited = img
 

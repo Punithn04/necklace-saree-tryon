@@ -15,42 +15,39 @@ Built for Assignment 2.
 
 | | |
 |---|---|
-| Model | **`gemini-2.5-flash-image`** — Google's "Nano Banana" image model |
-| API | Google Gemini API, **free tier** (AI Studio key, no card) |
-| Why | Native image-in / image-out: one call both places the necklace on a model and does the targeted stone recolour. Same quality tier as ChatGPT's image generation, but with a free API. |
+| Model | **Qwen-Image-Edit** (Alibaba) — instruction-based image editing |
+| API | Public **Hugging Face Space**, called via `gradio_client`; **free tier** |
+| Auth | A free Hugging Face token ("Read" scope) — no card |
+| Why | It takes an image + a text instruction and returns an image, so one call both places the necklace on a model and does the targeted stone recolour. It is a genuine free-tier path (no paid API). |
 
-### Free-tier / region note
+The Space runs on **ZeroGPU**: a free token grants a few minutes of GPU per day —
+enough to build the deliverables and record the demo. Each run takes ~30–90s.
 
-The Gemini image model returns `RESOURCE_EXHAUSTED` with `limit: 0` when the
-request comes from certain regions (India, EU, UK). The key is **not** the
-problem — the request **origin IP** is. Running the deployed app on **Streamlit
-Community Cloud** (US servers) uses the free quota normally. For local testing
-from a blocked region, use a US VPN.
-
-### Model selection — what was tried and rejected
+### Model selection — what was tried
 
 - **OpenAI `gpt-image-1`** — no free tier (~$0.02–0.19/image).
-- **Hugging Face Inference API** (`Qwen-Image-Edit`, `FLUX.1-Kontext-dev`) — route
+- **Google Gemini image model ("Nano Banana")** — the API returns
+  `RESOURCE_EXHAUSTED` / `limit: 0`; the image models have **no free API quota**
+  (free only in the AI Studio website). Deploying in the US did not change this.
+- **Hugging Face Inference API** (`Qwen-Image-Edit`, `FLUX.1-Kontext-dev`) — routed
   to paid partner providers → `401`.
-- **Hugging Face Spaces** (ZeroGPU) — anonymous GPU quota is seconds/day.
 - **Pollinations.ai** — editing models moved behind a paid tier; the keyless
   model ignored the reference necklace.
-- **Gemini 2.5 Flash Image** — free API, top-tier quality, and the `limit: 0`
-  is fixable by hosting in the US. Chosen.
+- **Hugging Face Space + free token (Qwen-Image-Edit)** — a real free-tier editing
+  model. Chosen, accepting the small daily GPU budget.
 
 ## Tools / technologies
 
 - **Python 3.13**, **Streamlit** — UI, state, hosting
-- **google-genai** — Gemini API client
-- **Pillow** — image I/O and downscaling
-- **Streamlit Community Cloud** — free deploy (and the US egress that makes the
-  free Gemini tier usable)
+- **gradio_client** — calls the Hugging Face Space
+- **Pillow** — image I/O and downscaling (1024 px longest side)
+- **Streamlit Community Cloud** — free deploy
 
 ## Prompting approach
 
 Two templates in [`prompts.py`](prompts.py):
 
-1. **Generation** — the necklace is passed as an input image, not described in
+1. **Generation** — the necklace is passed as the input image, not described in
    text. The prompt frames the task as product photography, fixes the model
    (Indian woman, silk saree in a selectable colour, studio lighting, upper-chest
    crop with the necklace as focal point), then spends most of its length on
@@ -61,16 +58,16 @@ Two templates in [`prompts.py`](prompts.py):
    the same shape, size and position). Everything else is pinned — face, pose,
    saree, background, lighting, metalwork, pearls, other stones — so the model
    retouches rather than regenerates. Repeated edits chain off the previous
-   edited image for consistency.
+   edited image. `rewrite_prompt` is disabled on the Space so our prompt is used
+   verbatim; a fixed seed keeps runs reproducible.
 
 ## How design accuracy is preserved
 
-- The necklace photo is always an input image, so the model copies from pixels
-  rather than a paraphrase.
+- The necklace photo is always an input image, so the model copies from pixels.
 - The generation prompt enumerates the invariants (stone count, arrangement,
   cuts, pearls, metal tone) instead of a generic "keep it similar".
-- Editing is scoped to one attribute and explicitly forbids touching the rest;
-  chained edits build on the last result.
+- Editing is scoped to one attribute and forbids touching the rest; chained edits
+  build on the last result.
 
 ## Run locally
 
@@ -79,8 +76,8 @@ pip install -r requirements.txt
 streamlit run app.py
 ```
 
-Paste a free Gemini key in the sidebar (or set `GEMINI_API_KEY` in
-`.streamlit/secrets.toml`). From a blocked region, run behind a US VPN.
+Paste a free HF token in the sidebar, or set `HF_TOKEN` in
+`.streamlit/secrets.toml`.
 
 ## Deploy (free)
 
@@ -88,20 +85,18 @@ Paste a free Gemini key in the sidebar (or set `GEMINI_API_KEY` in
 2. <https://share.streamlit.io> → **New app** → point at `app.py`.
 3. **Settings → Secrets:**
    ```toml
-   GEMINI_API_KEY = "..."
+   HF_TOKEN = "hf_..."
    ```
-
-Deploying on Streamlit Cloud (US) is what makes the free Gemini image tier work.
 
 ## Limitations faced
 
-- **Free image tier is geo-blocked** outside the US; the app must be hosted in
-  the US (or run behind a US VPN locally).
+- **No free-tier API from the ChatGPT-quality models** — Gemini's image API is
+  `limit: 0`, OpenAI's is paid. This is why the app uses Qwen-Image-Edit.
+- **Daily GPU budget.** The free HF ZeroGPU allowance is a few minutes/day; heavy
+  use hits a "quota exceeded, try again tomorrow" error (surfaced in the UI).
+- **Latency.** Cold Space + queue means 30–90s per run.
 - **Stone-level fidelity is imperfect.** The necklace silhouette and palette hold
-  up well, but fine filigree and the exact count of small accent stones can drift.
-- **Edit localization.** Broad instructions ("change the stones") can occasionally
-  nudge lighting or an adjacent pearl; narrow instructions work better.
-- **Non-determinism.** Same input, different runs → different photos; no seed
-  control is exposed.
-- **Single view.** Output is one upper-body crop; no multi-angle or full-length
-  shots.
+  up, but fine filigree and the exact count of small accent stones can drift.
+- **Edit localization.** Broad instructions can nudge lighting or a pearl; narrow
+  instructions work better.
+- **Single upper-body view; non-deterministic across prompts.**
