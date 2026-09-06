@@ -20,8 +20,9 @@ from PIL import Image
 API = "https://stablehorde.net/api/v2"
 ANON_KEY = "0000000000"
 CLIENT_AGENT = "necklace-tryon:1.0:assignment"
-# SDXL only — SD 1.5 mangles portrait anatomy (double faces, extra limbs).
-MODELS = ["AlbedoBase XL (SDXL)", "SDXL 1.0", "Juggernaut XL"]
+# Prefer SDXL (better anatomy); include broad fallbacks so more workers are
+# eligible and the queue clears faster.
+MODELS = ["AlbedoBase XL (SDXL)", "SDXL 1.0", "Juggernaut XL", "Dreamshaper XL", "stable_diffusion"]
 NEG_PROMPT = (
     "text, watermark, signature, lowres, blurry, jpeg artifacts, deformed, "
     "disfigured, bad anatomy, extra limbs, extra fingers, mutated hands, "
@@ -29,7 +30,7 @@ NEG_PROMPT = (
 )
 MAX_SIDE = 768
 POLL_SECS = 6
-TIMEOUT_SECS = 900  # 15 min hard cap
+TIMEOUT_SECS = 1200  # 20 min hard cap (Horde queues swing widely)
 
 # denoising strength per step: high = free to change, low = keep the input
 DENOISE = {"generate": 0.72, "edit": 0.42}
@@ -62,11 +63,10 @@ def run(api_key: str, step: str, prompt: str, images: list[Image.Image],
 
     params = {
         "n": 1,
-        "steps": 30,
+        "steps": 25,
         "cfg_scale": 7.0,
         "sampler_name": "k_euler_a",
         "karras": True,
-        "post_processing": ["GFPGAN"],  # tidy faces
     }
     prompt = f"{prompt} ### {NEG_PROMPT}"  # Horde negative prompt syntax
 
