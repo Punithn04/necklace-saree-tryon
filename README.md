@@ -15,8 +15,8 @@ Built for Assignment 2.
 
 | | |
 |---|---|
-| Model | **Stable Diffusion XL** (img2img) |
-| API | **Cloudflare Workers AI** — `@cf/stabilityai/stable-diffusion-xl-base-1.0` |
+| Model | **Stable Diffusion 1.5** (img2img) — the only image-input model on Workers AI |
+| API | **Cloudflare Workers AI** — `@cf/runwayml/stable-diffusion-v1-5-img2img` |
 | Free tier | **10,000 Neurons/day**, no card — just a free Cloudflare account |
 | Auth | Account ID + a "Workers AI" API token |
 
@@ -37,14 +37,14 @@ model may move from the input image:
   the free ZeroGPU budget is only a few minutes/day and was exhausted quickly.
 - **Pollinations.ai** — editing models behind a paid tier; keyless model ignores
   the reference.
-- **Cloudflare Workers AI (SDXL img2img)** — a genuine free tier with a large
+- **Cloudflare Workers AI (SD 1.5 img2img)** — a genuine free tier with a large
   daily allowance. Chosen, accepting lower fidelity than the paid models.
 
 ## Tools / technologies
 
 - **Python 3.13**, **Streamlit** — UI, state, hosting
 - **requests** — Cloudflare Workers AI REST calls
-- **Pillow** — image I/O, downscaling (1024 px longest side), PNG export
+- **Pillow** — image I/O, downscaling (768 px longest side), PNG export
 - **Streamlit Community Cloud** — free deploy
 
 ## Prompting approach
@@ -97,8 +97,8 @@ and `CF_API_TOKEN` in `.streamlit/secrets.toml`.
 
 - **No free-tier API from the ChatGPT-quality models** — Gemini's image API is
   `limit: 0`, OpenAI's is paid, HF's free GPU budget is minutes/day. The only
-  large free allowance is Cloudflare's, on SDXL.
-- **SDXL img2img fidelity is limited.** It keeps the necklace's rough shape and
+  large free allowance is Cloudflare's, on SD 1.5.
+- **SD 1.5 img2img fidelity is limited.** It keeps the necklace's rough shape and
   palette, but fine filigree, exact stone counts and small accent stones drift
   more than a dedicated edit model would.
 - **`strength` is a blunt instrument** — too low and the "generate" step barely

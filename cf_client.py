@@ -18,8 +18,9 @@ import io
 import requests
 from PIL import Image
 
-MODEL = "@cf/stabilityai/stable-diffusion-xl-base-1.0"
-MAX_SIDE = 1024
+# The only Workers AI model that accepts an input image (img2img) is SD 1.5.
+MODEL = "@cf/runwayml/stable-diffusion-v1-5-img2img"
+MAX_SIDE = 768
 TIMEOUT = 120
 NEG = (
     "text, watermark, signature, logo, lowres, blurry, jpeg artifacts, deformed, "
