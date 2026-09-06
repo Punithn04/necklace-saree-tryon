@@ -1,14 +1,15 @@
-"""Necklace Try-On — Streamlit prototype.
+"""Necklace Try-On — prompt builder + result collector (fully free, no API).
 
-Upload a necklace image -> generate a photo of the same necklace worn by an
-Indian model in a saree -> edit the stones (e.g. green -> red).
+The app does everything except the model call:
+  1. Upload a necklace image.
+  2. It builds an optimised generation prompt for the chosen saree colour. You run
+     it in ChatGPT or Google AI Studio (both free in the browser) with the
+     necklace attached, then upload the result back.
+  3. It builds an optimised edit prompt (default: green stones -> red). You run it
+     in the SAME chat, then upload the edited image back.
+  4. It shows the input -> generated -> edited strip with download buttons.
 
-Backend:
-  * default — AI Horde (stablehorde.net): free, no card, no daily cap (just a
-    queue). The recolour edit is faithful; the generate step is text2img, so the
-    necklace is a plausible one, not a pixel-match of the upload.
-  * optional — paste a Gemini (AIza…) or OpenAI (sk-…) key for a reference-faithful
-    result at your own cost.
+No API keys, no quotas, no cost.
 """
 
 from __future__ import annotations
@@ -18,16 +19,11 @@ import io
 import streamlit as st
 from PIL import Image
 
-from byok_client import BYOKError, run as byok_run
-from horde_client import HordeError, run as horde_run
-from prompts import (
-    DEFAULT_EDIT_INSTRUCTION,
-    EDIT_PROMPT,
-    GENERATION_PROMPT,
-    GENERATION_PROMPT_NOREF,
-)
+from prompts import DEFAULT_EDIT_INSTRUCTION, EDIT_PROMPT, GENERATION_PROMPT
 
 st.set_page_config(page_title="Necklace Try-On", page_icon="💎", layout="wide")
+
+SAREE_COLOURS = ["cream and gold", "deep red", "royal blue", "emerald green", "magenta pink"]
 
 
 def to_png_bytes(img: Image.Image) -> bytes:
@@ -40,103 +36,36 @@ def load(upload) -> Image.Image:
     return Image.open(upload).convert("RGB")
 
 
-def _secret(name):
-    try:
-        return st.secrets.get(name, None)
-    except Exception:
-        return None
-
-
-def sidebar() -> tuple[str | None, str]:
-    with st.sidebar:
-        st.header("Setup")
-        byok = _secret("BYOK_KEY")
-        horde_key = _secret("HORDE_API_KEY") or ""
-        if byok:
-            st.success("Using BYOK_KEY from app secrets (premium backend).")
-        else:
-            byok = st.text_input(
-                "API key — optional, for best quality",
-                type="password",
-                help="Gemini key (AIza…) or OpenAI key (sk-…). Leave blank to use the free backend.",
-            ) or None
-        if not _secret("HORDE_API_KEY"):
-            horde_key = st.text_input(
-                "AI Horde key — optional (speeds the queue)",
-                type="password",
-                value="",
-                help="Free from https://stablehorde.net/register . Blank = anonymous.",
-            ) or ""
-
-        if byok:
-            st.info("Backend: **premium (your key)** — reference-faithful.")
-        else:
-            st.info(
-                "Backend: **AI Horde (free)** — recolour is faithful; the generate "
-                "step is text2img, so the necklace is representative, not exact."
-            )
-    return byok, horde_key
-
-
-def do_generate(byok, horde_key, saree_colour, necklace):
-    if byok:
-        with st.spinner("Generating with your key…"):
-            try:
-                return byok_run(byok, GENERATION_PROMPT.format(saree_colour=saree_colour), [necklace])
-            except BYOKError as e:
-                st.error(str(e))
-                return None
-    box = st.empty()
-    box.info("Generating on AI Horde — submitting…")
-    try:
-        return horde_run(
-            horde_key, "generate",
-            GENERATION_PROMPT_NOREF.format(saree_colour=saree_colour),
-            [necklace],
-            progress=lambda m: box.info(f"Generating on AI Horde — {m}"),
-        )
-    except HordeError as e:
-        st.error(str(e))
-        return None
-    finally:
-        box.empty()
-
-
-def do_edit(byok, horde_key, instruction, base):
-    prompt = EDIT_PROMPT.format(instruction=instruction or DEFAULT_EDIT_INSTRUCTION)
-    if byok:
-        with st.spinner("Editing with your key…"):
-            try:
-                return byok_run(byok, prompt, [base])
-            except BYOKError as e:
-                st.error(str(e))
-                return None
-    box = st.empty()
-    box.info("Editing on AI Horde — submitting…")
-    try:
-        return horde_run(horde_key, "edit", prompt, [base],
-                         progress=lambda m: box.info(f"Editing on AI Horde — {m}"))
-    except HordeError as e:
-        st.error(str(e))
-        return None
-    finally:
-        box.empty()
-
-
 def main() -> None:
     st.title("💎 Necklace Try-On")
     st.write(
-        "Upload a necklace image and generate a realistic photo of the same "
-        "necklace worn by an Indian model in a saree — then tweak the stones."
+        "Upload a necklace, get an optimised prompt, run it in a free image tool "
+        "(**ChatGPT** or **Google AI Studio**), and upload the result back. "
+        "The app handles the upload, the prompt engineering, the edit step and the "
+        "final comparison — everything except the one model call."
     )
 
-    byok, horde_key = sidebar()
+    with st.sidebar:
+        st.header("How to use")
+        st.markdown(
+            "1. Upload a necklace image.\n"
+            "2. **Copy** the generation prompt. Open "
+            "[ChatGPT](https://chatgpt.com) or "
+            "[Google AI Studio](https://aistudio.google.com), attach the same "
+            "necklace image, paste the prompt, run it.\n"
+            "3. Upload the generated image back here.\n"
+            "4. **Copy** the edit prompt, run it in the *same* chat, upload the "
+            "edited image back.\n\n"
+            "Recommended model: **Gemini 2.5 Flash Image** (AI Studio) or "
+            "**GPT-4o image** (ChatGPT) — both free in the browser."
+        )
+
     for k in ("necklace_img", "generated", "edited"):
         st.session_state.setdefault(k, None)
 
-    # ---- Step 1: upload ---------------------------------------------------------
+    # ---- Step 1 --------------------------------------------------------------
     st.subheader("1 · Upload a necklace")
-    up = st.file_uploader("Necklace image (JPG / PNG)", type=["jpg", "jpeg", "png"])
+    up = st.file_uploader("Necklace image (JPG / PNG)", type=["jpg", "jpeg", "png"], key="u_neck")
     c = st.columns(3)
     if c[0].button("Use sample: green stones"):
         st.session_state.necklace_img = Image.open("sample_images/necklace_green.jpg").convert("RGB")
@@ -151,40 +80,65 @@ def main() -> None:
     if st.session_state.necklace_img is None:
         st.info("Upload a necklace image or pick a sample to begin.")
         return
-    st.image(st.session_state.necklace_img, caption="Input necklace", width=300)
 
-    # ---- Step 2: generate ----------------------------------------------------
-    st.subheader("2 · Generate the model shot")
-    saree_colour = st.selectbox(
-        "Saree colour",
-        ["cream and gold", "deep red", "royal blue", "emerald green", "magenta pink"],
+    st.image(st.session_state.necklace_img, caption="Input necklace", width=300)
+    st.download_button(
+        "⬇ Download this necklace image (to attach in ChatGPT / AI Studio)",
+        to_png_bytes(st.session_state.necklace_img),
+        file_name="necklace_input.png",
+        mime="image/png",
     )
-    if st.button("Generate", type="primary"):
-        img = do_generate(byok, horde_key, saree_colour, st.session_state.necklace_img)
-        if img is not None:
-            st.session_state.generated, st.session_state.edited = img, None
+
+    # ---- Step 2 --------------------------------------------------------------
+    st.subheader("2 · Generate the model shot")
+    saree_colour = st.selectbox("Saree colour", SAREE_COLOURS)
+    st.caption("Copy this prompt into ChatGPT / AI Studio **with the necklace image attached**:")
+    st.code(GENERATION_PROMPT.format(saree_colour=saree_colour), language="text")
+    st.link_button("Open ChatGPT ↗", "https://chatgpt.com")
+    st.link_button("Open Google AI Studio ↗", "https://aistudio.google.com")
+
+    g = st.file_uploader("Upload the generated image", type=["jpg", "jpeg", "png"], key="u_gen")
+    if g is not None:
+        st.session_state.generated = load(g)
+        st.session_state.edited = None
 
     if st.session_state.generated is None:
+        st.info("Run the generation prompt, then upload the result here to continue.")
         return
-    st.image(st.session_state.generated, caption="Generated output", width=400)
-    st.download_button("Download generated", to_png_bytes(st.session_state.generated),
-                       file_name="necklace_on_model.png", mime="image/png")
 
-    # ---- Step 3: edit ------------------------------------------------------
+    st.image(st.session_state.generated, caption="Generated output", width=400)
+
+    # ---- Step 3 --------------------------------------------------------------
     st.subheader("3 · Edit the stones")
     instruction = st.text_area("Edit instruction", value=DEFAULT_EDIT_INSTRUCTION)
-    if st.button("Apply edit"):
-        base = st.session_state.edited or st.session_state.generated
-        img = do_edit(byok, horde_key, instruction, base)
-        if img is not None:
-            st.session_state.edited = img
+    st.caption("Copy this into the **same chat** (so it edits the image it just made):")
+    st.code(EDIT_PROMPT.format(instruction=instruction), language="text")
 
+    e = st.file_uploader("Upload the edited image", type=["jpg", "jpeg", "png"], key="u_edit")
+    if e is not None:
+        st.session_state.edited = load(e)
+
+    # ---- Result -----------------------------------------------------------
+    st.subheader("Result")
+    strip = [
+        ("Input necklace", st.session_state.necklace_img),
+        ("Generated", st.session_state.generated),
+        ("Edited", st.session_state.edited),
+    ]
+    cols = st.columns(3)
+    for col, (label, im) in zip(cols, strip):
+        if im is not None:
+            col.image(im, caption=label, use_container_width=True)
+        else:
+            col.caption(f"{label} — not yet")
+
+    dl = st.columns(2)
+    if st.session_state.generated is not None:
+        dl[0].download_button("⬇ Download generated", to_png_bytes(st.session_state.generated),
+                              file_name="necklace_on_model.png", mime="image/png")
     if st.session_state.edited is not None:
-        c1, c2 = st.columns(2)
-        c1.image(st.session_state.generated, caption="Before", use_container_width=True)
-        c2.image(st.session_state.edited, caption="Edited output", use_container_width=True)
-        st.download_button("Download edited", to_png_bytes(st.session_state.edited),
-                           file_name="necklace_edited.png", mime="image/png")
+        dl[1].download_button("⬇ Download edited", to_png_bytes(st.session_state.edited),
+                              file_name="necklace_edited.png", mime="image/png")
 
 
 if __name__ == "__main__":
