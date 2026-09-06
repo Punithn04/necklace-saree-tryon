@@ -2,7 +2,7 @@
 
 Upload a necklace image -> generate a photo of the same necklace worn by an
 Indian model in a saree -> edit the stones on that image (e.g. green -> red).
-All image work runs on Cloudflare Workers AI (SDXL img2img), free tier.
+All image work runs on the free AI Horde (stablehorde.net), img2img.
 """
 
 from __future__ import annotations
@@ -12,7 +12,7 @@ import io
 import streamlit as st
 from PIL import Image
 
-from cf_client import CFError, run
+from horde_client import HordeError, run
 from prompts import DEFAULT_EDIT_INSTRUCTION, EDIT_PROMPT, GENERATION_PROMPT
 
 st.set_page_config(page_title="Necklace Try-On", page_icon="💎", layout="wide")
@@ -28,38 +28,44 @@ def load(upload) -> Image.Image:
     return Image.open(upload).convert("RGB")
 
 
-def _secret(name):
+def get_key() -> str:
     try:
-        return st.secrets.get(name, None)
+        key = st.secrets.get("HORDE_API_KEY", None)
     except Exception:
-        return None
-
-
-def get_creds() -> tuple[str | None, str | None]:
-    acct = _secret("CF_ACCOUNT_ID")
-    token = _secret("CF_API_TOKEN")
+        key = None
     with st.sidebar:
         st.header("Setup")
-        if acct and token:
-            st.success("Using Cloudflare creds from app secrets.")
+        if key:
+            st.success("Using HORDE_API_KEY from app secrets.")
         else:
-            acct = st.text_input("Cloudflare Account ID", value=acct or "") or None
-            token = st.text_input("Cloudflare API token", value=token or "", type="password") or None
-        st.caption("Model: SDXL img2img on Cloudflare Workers AI (free — 10,000 runs/day).")
+            key = st.text_input(
+                "AI Horde API key (optional)",
+                type="password",
+                help="Free key: https://stablehorde.net/register . Blank = anonymous (slower).",
+            )
+        st.caption("Model: SDXL img2img on the free AI Horde (stablehorde.net).")
         st.caption(
-            "Free account: Account ID from the Workers & Pages page; API token from "
-            "My Profile → API Tokens → 'Workers AI' template."
+            "It's a shared volunteer GPU queue — a run can take 1–10 min. "
+            "Anonymous is slowest; a free key jumps the queue."
         )
-    return acct, token
+    return key or ""
 
 
-def generate(acct, token, step, prompt, images, label):
-    with st.spinner(f"{label} on Cloudflare Workers AI…"):
-        try:
-            return run(acct, token, step, prompt, images)
-        except CFError as e:
-            st.error(str(e))
-            return None
+def generate(key, step, prompt, images, label):
+    box = st.empty()
+    box.info(f"{label} on AI Horde — submitting…")
+
+    def prog(msg):
+        box.info(f"{label} on AI Horde — {msg}")
+
+    try:
+        img = run(key, step, prompt, images, progress=prog)
+        box.empty()
+        return img
+    except HordeError as e:
+        box.empty()
+        st.error(str(e))
+        return None
 
 
 def main() -> None:
@@ -69,8 +75,7 @@ def main() -> None:
         "necklace worn by an Indian model in a saree — then tweak the stones."
     )
 
-    acct, token = get_creds()
-    ready = bool(acct and token)
+    key = get_key()
     for k in ("necklace_img", "generated", "edited"):
         st.session_state.setdefault(k, None)
 
@@ -99,17 +104,15 @@ def main() -> None:
         "Saree colour",
         ["cream and gold", "deep red", "royal blue", "emerald green", "magenta pink"],
     )
-    if st.button("Generate", type="primary", disabled=not ready):
+    if st.button("Generate", type="primary"):
         img = generate(
-            acct, token, "generate",
+            key, "generate",
             GENERATION_PROMPT.format(saree_colour=saree_colour),
             [st.session_state.necklace_img],
             "Generating",
         )
         if img is not None:
             st.session_state.generated, st.session_state.edited = img, None
-    if not ready:
-        st.warning("Add your Cloudflare Account ID and API token in the sidebar.")
 
     if st.session_state.generated is None:
         return
@@ -120,10 +123,9 @@ def main() -> None:
     # ---- Step 3: edit ------------------------------------------------------
     st.subheader("3 · Edit the stones")
     instruction = st.text_area("Edit instruction", value=DEFAULT_EDIT_INSTRUCTION)
-    if st.button("Apply edit", disabled=not ready):
+    if st.button("Apply edit"):
         base = st.session_state.edited or st.session_state.generated
-        img = generate(acct, token, "edit", EDIT_PROMPT.format(instruction=instruction),
-                       [base], "Editing")
+        img = generate(key, "edit", EDIT_PROMPT.format(instruction=instruction), [base], "Editing")
         if img is not None:
             st.session_state.edited = img
 
