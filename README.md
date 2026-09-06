@@ -1,8 +1,8 @@
 # 💎 Necklace Try-On
 
-Upload a necklace image → generate a photorealistic image of the **same** necklace
-worn by an Indian model in a saree → edit the stones on that image (e.g. green →
-red), keeping the rest of the photo unchanged.
+Upload a necklace image → generate a photorealistic image of a necklace worn by
+an Indian model in a saree → edit the stones on that image (e.g. green → red),
+keeping the rest of the photo unchanged.
 
 Built for Assignment 2.
 
@@ -11,63 +11,69 @@ Built for Assignment 2.
 - **App:** _<add your Streamlit Community Cloud URL here after deploy>_
 - **Screen recording:** _<add link>_
 
-## Model / API used
+## Backends
 
-| | |
-|---|---|
-| Model | **Qwen-Image-Edit** (Alibaba) — instruction-based image editing |
-| API | Public **Hugging Face Space**, called via `gradio_client`; **free tier** |
-| Auth | A free Hugging Face token ("Read" scope) — no card |
-| Why | It takes an image + a text instruction and returns an image, so one call both places the necklace on a model and does the targeted stone recolour. It is a genuine free-tier path (no paid API). |
+The app has two backends. It picks automatically:
 
-The Space runs on **ZeroGPU**: a free token grants a few minutes of GPU per day —
-enough to build the deliverables and record the demo. Each run takes ~30–90s.
+| | When | Generate step | Edit / recolour step | Cost |
+|---|---|---|---|---|
+| **AI Horde** (default) | no key entered | text2img on SDXL — a realistic model in a saree wearing an ornate necklace; the necklace is **representative, not a pixel-match** of the upload | img2img recolour on the generated image — **faithful & repeatable** | free, no card, no daily cap (just a shared GPU queue — seconds to minutes) |
+| **Bring your own key** | a Gemini `AIza…` or OpenAI `sk-…` key is entered | reference-faithful: the necklace is passed as an image | reference-faithful | your key's usage (~cents/image) |
+
+**Why two:** no free image API allows unlimited faithful generation — every
+top-tier model (`gpt-image-1`, Gemini image) is paid or hard-quota. So the live
+app runs on AI Horde for free, unlimited access, and anyone who wants exact
+fidelity (including for the demo recording) plugs in a key.
 
 ### Model selection — what was tried
 
 - **OpenAI `gpt-image-1`** — no free tier (~$0.02–0.19/image).
-- **Google Gemini image model ("Nano Banana")** — the API returns
-  `RESOURCE_EXHAUSTED` / `limit: 0`; the image models have **no free API quota**
-  (free only in the AI Studio website). Deploying in the US did not change this.
-- **Hugging Face Inference API** (`Qwen-Image-Edit`, `FLUX.1-Kontext-dev`) — routed
+- **Google Gemini image model ("Nano Banana")** — API returns `limit: 0`; image
+  models have **no free API quota** (free only in the AI Studio website). A US
+  host did not change this.
+- **Hugging Face Inference API** (`Qwen-Image-Edit`, `FLUX.1-Kontext-dev`) — routes
   to paid partner providers → `401`.
-- **Pollinations.ai** — editing models moved behind a paid tier; the keyless
-  model ignored the reference necklace.
-- **Hugging Face Space + free token (Qwen-Image-Edit)** — a real free-tier editing
-  model. Chosen, accepting the small daily GPU budget.
+- **Public HF Space + free token (Qwen-Image-Edit)** — real editing model, but the
+  free ZeroGPU budget is ~4 min/day and would be drained by a single visitor.
+- **Self-hosted Gradio Space (FLUX.2 [klein] on ZeroGPU)** — Hugging Face now
+  requires PRO for any compute Space.
+- **Pollinations.ai** — editing models behind a paid tier; keyless model ignores
+  the reference.
+- **Cloudflare Workers AI** — its only img2img model (SD 1.5) was withdrawn.
+- **AI Horde** — genuinely free, no card, no hard daily cap. Chosen as the
+  default, with an optional bring-your-own-key path for full fidelity.
 
 ## Tools / technologies
 
 - **Python 3.13**, **Streamlit** — UI, state, hosting
-- **gradio_client** — calls the Hugging Face Space
-- **Pillow** — image I/O and downscaling (1024 px longest side)
+- **requests** — AI Horde REST API
+- **google-genai** / **openai** — the optional premium backends
+- **Pillow** — image I/O and downscaling
 - **Streamlit Community Cloud** — free deploy
 
 ## Prompting approach
 
-Two templates in [`prompts.py`](prompts.py):
+Templates in [`prompts.py`](prompts.py):
 
-1. **Generation** — the necklace is passed as the input image, not described in
-   text. The prompt frames the task as product photography, fixes the model
-   (Indian woman, silk saree in a selectable colour, studio lighting, upper-chest
-   crop with the necklace as focal point), then spends most of its length on
-   **fidelity constraints**: same shape, same stone count / arrangement / colour /
-   cut, same pearl drops, same metal tone — "match it like a photograph, not an
-   interpretation", plus an explicit "do not redesign / add / remove / recolour".
-2. **Editing** — one localized instruction (default: green stones → red rubies of
-   the same shape, size and position). Everything else is pinned — face, pose,
-   saree, background, lighting, metalwork, pearls, other stones — so the model
-   retouches rather than regenerates. Repeated edits chain off the previous
-   edited image. `rewrite_prompt` is disabled on the Space so our prompt is used
-   verbatim; a fixed seed keeps runs reproducible.
+- **Generation, reference path** (`GENERATION_PROMPT`) — the necklace is the input
+  image. Framed as product photography, fixes the model (Indian woman, silk saree
+  in a selectable colour, studio lighting, upper-chest crop, necklace as focal
+  point), then a block of **fidelity constraints**: same shape / stone count /
+  arrangement / colour / cut / pearls / metal tone, "do not redesign".
+- **Generation, free path** (`GENERATION_PROMPT_NOREF`) — text2img, so the
+  necklace is *described* (rose-gold, diamonds, emeralds, pearl drops) rather than
+  copied; plus a strong negative prompt for anatomy artefacts.
+- **Editing** (`EDIT_PROMPT`) — one localized instruction (default: green stones →
+  red rubies of the same shape, size, position) with everything else pinned, so
+  the model retouches rather than regenerates. Chained edits build on the last
+  result; a low img2img `denoising_strength` keeps the necklace geometry.
 
 ## How design accuracy is preserved
 
-- The necklace photo is always an input image, so the model copies from pixels.
-- The generation prompt enumerates the invariants (stone count, arrangement,
-  cuts, pearls, metal tone) instead of a generic "keep it similar".
-- Editing is scoped to one attribute and forbids touching the rest; chained edits
-  build on the last result.
+- Reference path: the necklace photo is the model input, so it works from pixels.
+- Free path: the recolour edit is img2img at low strength, so the generated
+  necklace's shape is untouched and only the stone hue changes.
+- The generation prompt enumerates the invariants instead of "keep it similar".
 
 ## Run locally
 
@@ -76,27 +82,28 @@ pip install -r requirements.txt
 streamlit run app.py
 ```
 
-Paste a free HF token in the sidebar, or set `HF_TOKEN` in
-`.streamlit/secrets.toml`.
+All keys optional — with none, it runs on AI Horde.
 
 ## Deploy (free)
 
-1. Push this repo to GitHub.
-2. <https://share.streamlit.io> → **New app** → point at `app.py`.
-3. **Settings → Secrets:**
+1. Push to GitHub.
+2. <https://share.streamlit.io> → **New app** → `app.py`.
+3. **Settings → Secrets** — all optional:
    ```toml
-   HF_TOKEN = "hf_..."
+   # Priority on the free queue (free key from stablehorde.net/register):
+   HORDE_API_KEY = "..."
+   # Premium backend for full fidelity (Gemini AIza… or OpenAI sk-…):
+   BYOK_KEY = "..."
    ```
 
 ## Limitations faced
 
-- **No free-tier API from the ChatGPT-quality models** — Gemini's image API is
-  `limit: 0`, OpenAI's is paid. This is why the app uses Qwen-Image-Edit.
-- **Daily GPU budget.** The free HF ZeroGPU allowance is a few minutes/day; heavy
-  use hits a "quota exceeded, try again tomorrow" error (surfaced in the UI).
-- **Latency.** Cold Space + queue means 30–90s per run.
-- **Stone-level fidelity is imperfect.** The necklace silhouette and palette hold
-  up, but fine filigree and the exact count of small accent stones can drift.
-- **Edit localization.** Broad instructions can nudge lighting or a pearl; narrow
-  instructions work better.
-- **Single upper-body view; non-deterministic across prompts.**
+- **No free faithful generation.** Every model that can match the uploaded
+  necklace is paid or hard-quota (see model-selection list). The free path's
+  generate step is therefore representative, not exact.
+- **AI Horde is a shared queue.** Under load, a run can take several minutes;
+  anonymous access is lowest priority. A free Horde key helps a lot.
+- **Free path is SDXL-tier.** Fine filigree and exact stone counts drift.
+- **Edit localization.** Broad instructions can tint nearby areas; narrow ones
+  work better.
+- **Single upper-body view; non-deterministic between runs.**
