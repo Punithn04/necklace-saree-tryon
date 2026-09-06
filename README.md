@@ -1,27 +1,28 @@
 # 💎 Necklace Try-On
 
-A hosted prototype that takes a necklace image, builds an optimised prompt to
-place it on an Indian model in a saree, and to recolour its stones (e.g. green →
-red) — then collects the results into an input → generated → edited comparison
-with downloads.
+A static web app that takes a necklace image, builds an optimised prompt to place
+it on an Indian model in a saree and to recolour its stones (e.g. green → red),
+then collects the results into an input → generated → edited comparison with
+downloads.
 
 Built for Assignment 2.
 
 ## Live app
 
-- **App:** _<add your Streamlit Community Cloud URL here after deploy>_
+- **App:** _<add your Vercel URL here after deploy>_
 - **Screen recording:** _<add link>_
 
 ## How it works
 
 The app does everything except the single model call, so it stays **completely
-free — no API keys, no quotas, no cost**:
+free — no backend, no API keys, no quotas, no cost**. It's one static `index.html`
+(vanilla JS + Tailwind CDN):
 
 1. **Upload** a necklace image (or use a bundled sample). Download it to attach in
    the image tool.
 2. **Generate** — pick a saree colour; the app builds a detailed generation
-   prompt. Run it in **ChatGPT** or **Google AI Studio** (both free in the
-   browser) with the necklace attached, then upload the result back.
+   prompt with a copy button. Run it in **ChatGPT** or **Google AI Studio** (both
+   free in the browser) with the necklace attached, then upload the result back.
 3. **Edit** — the app builds a localized edit prompt (default: green stones → red
    rubies). Run it in the *same* chat so it edits the image it just made, then
    upload the edited image back.
@@ -56,7 +57,7 @@ is available on request; it changes only the one model call.
 
 ## Prompting approach
 
-Two templates in [`prompts.py`](prompts.py):
+Two templates (in `index.html`):
 
 1. **Generation** — the necklace is attached as a reference image, not described.
    The prompt frames the task as product photography, fixes the model (Indian
@@ -79,22 +80,28 @@ Two templates in [`prompts.py`](prompts.py):
 
 ## Tools / technologies
 
-- **Python 3.13**, **Streamlit** — UI, state, hosting
-- **Pillow** — image I/O and PNG export
-- **Streamlit Community Cloud** — free deploy
+- **Static HTML + vanilla JS**, **Tailwind CSS** (CDN) — no build step, no backend
+- **Vercel** — free static hosting
 - **ChatGPT (GPT-4o)** / **Google AI Studio (Gemini 2.5 Flash Image)** — the model call
 
 ## Run locally
 
+Just open `index.html` in a browser, or:
+
 ```bash
-pip install -r requirements.txt
-streamlit run app.py
+npx serve .
 ```
 
-## Deploy (free)
+## Deploy (free, Vercel)
 
-1. Push to GitHub.
-2. <https://share.streamlit.io> → **New app** → point at `app.py`. No secrets.
+```bash
+npm i -g vercel
+vercel        # first run links the project
+vercel --prod
+```
+
+Or import the GitHub repo at <https://vercel.com/new> — it's a static site, no
+configuration needed.
 
 ## Limitations faced
 

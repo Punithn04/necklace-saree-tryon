@@ -1,0 +1,225 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Necklace Try-On</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+  .prompt { white-space: pre-wrap; }
+</style>
+</head>
+<body class="bg-neutral-950 text-neutral-100 min-h-screen">
+<div class="max-w-5xl mx-auto px-4 py-8">
+
+  <header class="mb-8">
+    <h1 class="text-3xl font-semibold">💎 Necklace Try-On</h1>
+    <p class="text-neutral-400 mt-2 max-w-3xl">
+      Upload a necklace, get an optimised prompt, run it in a free image tool
+      (<a class="underline" href="https://chatgpt.com" target="_blank" rel="noopener">ChatGPT</a> or
+      <a class="underline" href="https://aistudio.google.com" target="_blank" rel="noopener">Google&nbsp;AI&nbsp;Studio</a>),
+      and upload the result back. The app handles the upload, the prompt engineering, the edit step
+      and the final comparison — everything except the one model call. No API keys, no cost.
+    </p>
+  </header>
+
+  <!-- Step 1 -->
+  <section class="mb-10">
+    <h2 class="text-xl font-medium mb-3">1 · Upload a necklace</h2>
+    <div class="flex flex-wrap items-center gap-3">
+      <input id="neckFile" type="file" accept="image/*"
+        class="text-sm file:mr-3 file:rounded file:border-0 file:bg-neutral-800 file:px-3 file:py-2 file:text-neutral-100" />
+      <button data-sample="sample_images/necklace_green.jpg"
+        class="sampleBtn rounded bg-neutral-800 px-3 py-2 text-sm hover:bg-neutral-700">Use sample: green stones</button>
+      <button data-sample="sample_images/necklace_red.jpg"
+        class="sampleBtn rounded bg-neutral-800 px-3 py-2 text-sm hover:bg-neutral-700">Use sample: red stones</button>
+    </div>
+
+    <div id="neckWrap" class="mt-4 hidden">
+      <img id="neckImg" alt="Input necklace" class="max-h-72 rounded border border-neutral-800" />
+      <div class="mt-2">
+        <a id="neckDownload" download="necklace_input.png"
+           class="inline-block rounded bg-neutral-800 px-3 py-2 text-sm hover:bg-neutral-700">
+          ⬇ Download this necklace image (to attach in ChatGPT / AI Studio)
+        </a>
+      </div>
+    </div>
+    <p id="step1Hint" class="text-sky-400 text-sm mt-3">Upload a necklace image or pick a sample to begin.</p>
+  </section>
+
+  <!-- Step 2 -->
+  <section id="step2" class="mb-10 hidden">
+    <h2 class="text-xl font-medium mb-3">2 · Generate the model shot</h2>
+    <label class="block text-sm text-neutral-400 mb-1">Saree colour</label>
+    <select id="saree" class="mb-4 rounded bg-neutral-800 px-3 py-2 text-sm">
+      <option>cream and gold</option><option>deep red</option><option>royal blue</option>
+      <option>emerald green</option><option>magenta pink</option>
+    </select>
+
+    <p class="text-sm text-neutral-400 mb-2">
+      Copy this prompt into ChatGPT / AI Studio <strong>with the necklace image attached</strong>:
+    </p>
+    <div class="relative">
+      <pre id="genPrompt" class="prompt rounded bg-neutral-900 border border-neutral-800 p-4 text-sm text-neutral-200 overflow-x-auto"></pre>
+      <button data-copy="genPrompt"
+        class="copyBtn absolute top-2 right-2 rounded bg-neutral-800 px-2 py-1 text-xs hover:bg-neutral-700">Copy</button>
+    </div>
+    <div class="flex gap-3 mt-3">
+      <a href="https://chatgpt.com" target="_blank" rel="noopener"
+        class="rounded bg-neutral-800 px-3 py-2 text-sm hover:bg-neutral-700">Open ChatGPT ↗</a>
+      <a href="https://aistudio.google.com" target="_blank" rel="noopener"
+        class="rounded bg-neutral-800 px-3 py-2 text-sm hover:bg-neutral-700">Open Google AI Studio ↗</a>
+    </div>
+
+    <div class="mt-4">
+      <label class="block text-sm text-neutral-400 mb-1">Upload the generated image</label>
+      <input id="genFile" type="file" accept="image/*"
+        class="text-sm file:mr-3 file:rounded file:border-0 file:bg-neutral-800 file:px-3 file:py-2 file:text-neutral-100" />
+    </div>
+    <div id="genWrap" class="mt-4 hidden">
+      <img id="genImg" alt="Generated output" class="max-h-80 rounded border border-neutral-800" />
+    </div>
+  </section>
+
+  <!-- Step 3 -->
+  <section id="step3" class="mb-10 hidden">
+    <h2 class="text-xl font-medium mb-3">3 · Edit the stones</h2>
+    <label class="block text-sm text-neutral-400 mb-1">Edit instruction</label>
+    <textarea id="instruction" rows="2"
+      class="w-full rounded bg-neutral-800 px-3 py-2 text-sm mb-3"></textarea>
+
+    <p class="text-sm text-neutral-400 mb-2">
+      Copy this into the <strong>same chat</strong> (so it edits the image it just made):
+    </p>
+    <div class="relative">
+      <pre id="editPrompt" class="prompt rounded bg-neutral-900 border border-neutral-800 p-4 text-sm text-neutral-200 overflow-x-auto"></pre>
+      <button data-copy="editPrompt"
+        class="copyBtn absolute top-2 right-2 rounded bg-neutral-800 px-2 py-1 text-xs hover:bg-neutral-700">Copy</button>
+    </div>
+
+    <div class="mt-4">
+      <label class="block text-sm text-neutral-400 mb-1">Upload the edited image</label>
+      <input id="editFile" type="file" accept="image/*"
+        class="text-sm file:mr-3 file:rounded file:border-0 file:bg-neutral-800 file:px-3 file:py-2 file:text-neutral-100" />
+    </div>
+  </section>
+
+  <!-- Result -->
+  <section id="result" class="mb-16 hidden">
+    <h2 class="text-xl font-medium mb-3">Result</h2>
+    <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+      <figure><img id="rInput" class="w-full rounded border border-neutral-800" /><figcaption class="text-xs text-neutral-400 mt-1 text-center">Input necklace</figcaption></figure>
+      <figure><img id="rGen" class="w-full rounded border border-neutral-800" /><figcaption class="text-xs text-neutral-400 mt-1 text-center">Generated</figcaption></figure>
+      <figure><img id="rEdit" class="w-full rounded border border-neutral-800" /><figcaption class="text-xs text-neutral-400 mt-1 text-center">Edited</figcaption></figure>
+    </div>
+    <div class="flex gap-3 mt-4">
+      <a id="dlGen" download="necklace_on_model.png" class="hidden rounded bg-neutral-800 px-3 py-2 text-sm hover:bg-neutral-700">⬇ Download generated</a>
+      <a id="dlEdit" download="necklace_edited.png" class="hidden rounded bg-neutral-800 px-3 py-2 text-sm hover:bg-neutral-700">⬇ Download edited</a>
+    </div>
+  </section>
+
+  <footer class="text-xs text-neutral-500 border-t border-neutral-900 pt-4">
+    Assignment 2 prototype. The single model call is done in a free browser tool; a small paid
+    variant (OpenAI image API, ~₹4/image, rate-limited) is available on request. See the README.
+  </footer>
+</div>
+
+<script>
+const GENERATION_PROMPT = (saree) => `You are a product photographer for a high-end Indian jewellery brand.
+
+Using the necklace in the attached image, create ONE photorealistic photograph of an Indian woman wearing THIS EXACT necklace.
+
+Model & styling:
+- Indian woman, mid-20s to early 30s, warm natural skin tone, soft studio beauty lighting.
+- Elegant ${saree} silk saree with a matching blouse, hair in a neat low bun, subtle traditional makeup, a small bindi.
+- Head-and-shoulders / upper-chest crop, slight three-quarter pose, plain softly lit studio background. The necklace rests naturally on the collarbone, fully visible, unobstructed, and is the clear focal point.
+
+Necklace fidelity (most important):
+- Reproduce the necklace EXACTLY as in the attached image: same overall shape, same number and arrangement of stones, same stone colours and cuts, same pearl drops, same metal tone and filigree pattern. Do NOT redesign, restyle, add, remove, or recolour any part of it. Match it like a photograph, not an interpretation.
+
+Output: a single realistic photograph. No text, no watermark, no collage.`;
+
+const EDIT_PROMPT = (instruction) => `Edit the provided image. ${instruction}
+
+Keep everything else identical: the woman's face, pose, skin, hair, saree, the background, the lighting, and the necklace's shape, metalwork, pearls and every other stone. Change ONLY what the instruction asks. The result must look like the same photograph with a localized retouch, not a regenerated scene.
+
+Output: a single realistic photograph. No text, no watermark.`;
+
+const DEFAULT_EDIT_INSTRUCTION =
+  "Change every green stone in the necklace to a deep red ruby of the same shape, size and position.";
+
+const $ = (id) => document.getElementById(id);
+const state = { neck: null, gen: null, edit: null };
+
+function setImg(imgEl, url) { imgEl.src = url; }
+function show(el) { el.classList.remove("hidden"); }
+
+function refreshPrompts() {
+  $("genPrompt").textContent = GENERATION_PROMPT($("saree").value);
+  $("editPrompt").textContent = EDIT_PROMPT($("instruction").value.trim() || DEFAULT_EDIT_INSTRUCTION);
+}
+
+function refreshResult() {
+  if (state.neck) { $("rInput").src = state.neck; }
+  if (state.gen)  { $("rGen").src = state.gen; $("dlGen").href = state.gen; show($("dlGen")); }
+  if (state.edit) { $("rEdit").src = state.edit; $("dlEdit").href = state.edit; show($("dlEdit")); }
+  if (state.neck || state.gen || state.edit) show($("result"));
+}
+
+function loadFile(file, cb) {
+  const url = URL.createObjectURL(file);
+  cb(url);
+}
+
+// Step 1
+$("neckFile").addEventListener("change", (e) => {
+  if (!e.target.files[0]) return;
+  loadFile(e.target.files[0], (url) => {
+    state.neck = url; state.gen = state.edit = null;
+    setImg($("neckImg"), url); $("neckDownload").href = url;
+    show($("neckWrap")); $("step1Hint").classList.add("hidden");
+    show($("step2")); refreshPrompts(); refreshResult();
+  });
+});
+document.querySelectorAll(".sampleBtn").forEach((b) => {
+  b.addEventListener("click", () => {
+    const url = b.dataset.sample;
+    state.neck = url; state.gen = state.edit = null;
+    setImg($("neckImg"), url); $("neckDownload").href = url;
+    show($("neckWrap")); $("step1Hint").classList.add("hidden");
+    show($("step2")); refreshPrompts(); refreshResult();
+  });
+});
+
+// Step 2
+$("saree").addEventListener("change", refreshPrompts);
+$("genFile").addEventListener("change", (e) => {
+  if (!e.target.files[0]) return;
+  loadFile(e.target.files[0], (url) => {
+    state.gen = url; state.edit = null;
+    setImg($("genImg"), url); show($("genWrap"));
+    show($("step3")); refreshResult();
+  });
+});
+
+// Step 3
+$("instruction").value = DEFAULT_EDIT_INSTRUCTION;
+$("instruction").addEventListener("input", refreshPrompts);
+$("editFile").addEventListener("change", (e) => {
+  if (!e.target.files[0]) return;
+  loadFile(e.target.files[0], (url) => { state.edit = url; refreshResult(); });
+});
+
+// Copy buttons
+document.querySelectorAll(".copyBtn").forEach((b) => {
+  b.addEventListener("click", async () => {
+    await navigator.clipboard.writeText($(b.dataset.copy).textContent);
+    const t = b.textContent; b.textContent = "Copied ✓";
+    setTimeout(() => (b.textContent = t), 1200);
+  });
+});
+
+refreshPrompts();
+</script>
+</body>
+</html>
